@@ -1251,6 +1251,7 @@ public:
                 // We hack into lbCtx private member and switch its lbpLang
                 // on-the-fly to the props for a possibly new language.
                 lbCtx.lbpLang = src->lang_cfg->getLBProps();
+                lb_char_sub_func_t lb_char_sub_func = src->lang_cfg->getLBCharSubFunc();
                 #endif
 
                 int len = src->t.len;
@@ -1475,10 +1476,10 @@ public:
                         }
                     }
                     lChar32 ch = m_text[pos];
-                    if ( src->lang_cfg->hasLBCharSubFunc() ) {
+                    if (lb_char_sub_func) {
                         // Lang specific function may want to substitute char (for
                         // libunibreak only) to tweak line breaking around it
-                        ch = src->lang_cfg->getLBCharSubFunc()(&lbCtx, m_text, pos, len-1 - k);
+                        ch = lb_char_sub_func(&lbCtx, m_text, pos, len-1 - k);
                         // We do this before the following, to allow this lang specific function
                         // to possibly tweak the more generic getCssLbCharSub()
                     }
