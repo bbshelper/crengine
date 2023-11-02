@@ -3944,32 +3944,6 @@ lxmlDocBase::lxmlDocBase( lxmlDocBase & doc )
 {
 }
 
-/// creates empty document which is ready to be copy target of doc partial contents
-ldomDocument::ldomDocument( ldomDocument & doc )
-: lxmlDocBase(doc)
-, m_toc(this)
-, m_pagemap(this)
-#if BUILD_LITE!=1
-, _def_font(doc._def_font) // default font
-, _def_style(doc._def_style)
-, _last_docflags(doc._last_docflags)
-, _page_height(doc._page_height)
-, _page_width(doc._page_width)
-, _screen_height(doc._screen_height)
-, _screen_width(doc._screen_width)
-, _rerendering_delayed(false)
-, _partial_rerendering_enabled(false)
-, _partial_rerenderings_count(0)
-, _partial_rerendering_fake_node_style_hash(0)
-, _rendered_fragments(16)
-, _doc_pages(NULL)
-#endif
-, _container(doc._container)
-, lists(100)
-{
-    _docIndex = ldomNode::registerDocument(this);
-}
-
 static void writeNode( LVStream * stream, ldomNode * node, bool treeLayout )
 {
     int level = 0;

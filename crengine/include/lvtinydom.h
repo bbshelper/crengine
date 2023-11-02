@@ -2662,8 +2662,7 @@ public:
     }
 
     ldomDocument();
-    /// creates empty document which is ready to be copy target of doc partial contents
-    ldomDocument( ldomDocument & doc );
+    ldomDocument( ldomDocument & ) = delete;
 
 #if BUILD_LITE!=1
     /// return selections collection
