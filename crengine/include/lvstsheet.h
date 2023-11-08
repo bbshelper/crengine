@@ -132,16 +132,23 @@ class LVCssSelectorRule
     lUInt16 _attrid;
     LVCssSelectorRule * _next;
     lString32 _value;
+    lUInt32 _index = 0xffffffff; // LXML_ATTR_VALUE_NONE, to not include lvtinydom.h
 public:
-    LVCssSelectorRule(LVCssSelectorRuleType type)
+    explicit LVCssSelectorRule(LVCssSelectorRuleType type)
     : _type(type), _id(0), _attrid(0), _next(NULL)
     { }
     LVCssSelectorRule( LVCssSelectorRule & v );
     void setId( lUInt16 id ) { _id = id; }
-    void setAttr( lUInt16 id, const lString32 value ) { _attrid = id; _value = value; }
+    void setAttr( lUInt16 id, const lString32 value, lUInt32 index = 0xffffffff ) {
+        _attrid = id;
+        _value = value;
+        _index = index;
+    }
     const LVCssSelectorRule * getNext() const { return _next; }
     void setNext(LVCssSelectorRule * next) { _next = next; }
     ~LVCssSelectorRule() { if (_next) delete _next; }
+    // A fail-fast check, returning false to rule out a match.
+    bool quickClassCheck(const lUInt32 *classIndices, size_t size) const;
     /// check condition for node
     bool check( const ldomNode * & node, bool allow_cache=true ) const;
     /// check next rules for node
@@ -177,6 +184,7 @@ public:
     ~LVCssSelector() { if (_next) delete _next; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
     bool parse( const char * &str, lxmlDocBase * doc );
     lUInt16 getElementNameId() const { return _id; }
+    bool quickClassCheck(const lUInt32 *classIndices, size_t size) const;
     bool check( const ldomNode * node, bool allow_cache=true ) const;
     void applyToPseudoElement( const ldomNode * node, css_style_rec_t * style ) const;
     void apply( const ldomNode * node, css_style_rec_t * style ) const

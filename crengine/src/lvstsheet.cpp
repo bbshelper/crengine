@@ -4922,6 +4922,17 @@ lUInt32 LVCssSelectorRule::getWeight() const {
     return 0;
 }
 
+bool LVCssSelectorRule::quickClassCheck(const lUInt32 *classIndices, size_t size) const {
+    if (_type != cssrt_class)
+        return true;
+    for (size_t i = 0; i < size; ++i) {
+        if (classIndices[i] == _index)
+            return true;
+    }
+    return false;
+}
+
+
 bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
 {
     if (!node || node->isNull() || node->isRoot())
@@ -5165,24 +5176,16 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
         break;
     case cssrt_class:         // E.class
         {
-            const lString32 &val = node->getAttributeValue(attr_class);
-            if ( val.empty() )
+            lUInt32 index = node->getAttributeValueIndex(LXML_NS_ANY, attr_class);
+            if (index == LXML_ATTR_VALUE_NONE)
                 return false;
-            // val.lowercase(); // className should be case sensitive
-            // we have appended a space when there was some inner space, meaning
-            // this class attribute contains multiple class names, which needs
-            // more complex checks
-            if ( val[val.length()-1] == ' ' ) {
-                int start = 0;
-                int pos;
-                while ((pos = val.pos(_value, start)) >= 0) {
-                    if ((pos == 0 || val[pos - 1] == ' ') && val[pos + _value.length()] == ' ')
-                        return true;
-                    start += _value.length();
-                }
-                return false;
+
+            auto *array = node->getDocument()->getStyleCalculationCache().find(index);
+            for (int i = array->length() - 1; i >= 0; --i) {
+                if (array->get(i) == _index)
+                    return true;
             }
-            return val == _value;
+            return false;
         }
         break;
     case cssrt_universal:     // *
@@ -5406,6 +5409,10 @@ bool LVCssSelectorRule::checkNextRules( const ldomNode * node, bool allow_cache 
     return true;
 }
 
+bool LVCssSelector::quickClassCheck(const lUInt32 *classIndices, size_t size) const {
+    return !_rules || _pseudo_elem || _rules->quickClassCheck(classIndices, size);
+}
+
 bool LVCssSelector::check( const ldomNode * node, bool allow_cache ) const
 {
     lUInt16 nodeId = node->getNodeId();
@@ -5538,7 +5545,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_class);
         const lString32 s( attrvalue );
         // s.lowercase(); // className should be case sensitive
-        rule->setAttr(attr_class, s);
+        rule->setAttr(attr_class, s, doc->getAttrValueIndex(s.c_str()));
         return rule;
     } else if ( *str=='#' ) {
         // E#id
@@ -5953,6 +5960,7 @@ LVCssSelectorRule::LVCssSelectorRule( LVCssSelectorRule & v )
 : _type(v._type), _id(v._id), _attrid(v._attrid)
 , _next(NULL)
 , _value( v._value )
+, _index(v._index)
 {
     if ( v._next )
         _next = new LVCssSelectorRule( *v._next );
@@ -6019,6 +6027,18 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
     LVCssSelector * selector_0 = _selectors[0];
     LVCssSelector * selector_id = id>0 && id<_selectors.length() ? _selectors[id] : NULL;
 
+    const lUInt32 *class_indices = nullptr;
+    size_t class_indices_len = 0;
+    {
+        lUInt32 index = node->getAttributeValueIndex(LXML_NS_ANY, attr_class);
+        if (index != LXML_ATTR_VALUE_NONE) {
+            const lString32 &value = _doc->getAttrValue(index);
+            LVArray<lUInt32> *array = node->getDocument()->getStyleCalculationCache().insertClass(index);
+            class_indices = array->ptr();
+            class_indices_len = array->length();
+        }
+    }
+
     for (;;)
     {
         if (selector_0!=NULL)
@@ -6026,20 +6046,23 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
             if (selector_id==NULL || selector_0->getSpecificity() < selector_id->getSpecificity() )
             {
                 // step by sel_0
-                selector_0->apply( node, style );
+                if (selector_0->quickClassCheck(class_indices, class_indices_len))
+                    selector_0->apply( node, style );
                 selector_0 = selector_0->getNext();
             }
             else
             {
                 // step by sel_id
-                selector_id->apply( node, style );
+                if (selector_id->quickClassCheck(class_indices, class_indices_len))
+                    selector_id->apply( node, style );
                 selector_id = selector_id->getNext();
             }
         }
         else if (selector_id!=NULL)
         {
             // step by sel_id
-            selector_id->apply( node, style );
+            if (selector_id->quickClassCheck(class_indices, class_indices_len))
+                selector_id->apply( node, style );
             selector_id = selector_id->getNext();
         }
         else

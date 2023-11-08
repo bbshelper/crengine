@@ -971,6 +971,8 @@ public:
     int getChildCount() const;
     /// returns element attribute count
     int getAttrCount() const;
+    /// returns attribute value index by attribute name id and namespace id
+    lUInt32 getAttributeValueIndex(lUInt16 nsid, lUInt16 id) const;
     /// returns attribute value by attribute name id and namespace id
     const lString32 & getAttributeValue( lUInt16 nsid, lUInt16 id ) const;
     /// returns attribute value by attribute name
@@ -2494,6 +2496,20 @@ public:
     }
 };
 
+class StyleCalculationCache {
+    lxmlDocBase *doc;
+    LVHashTable<lUInt32, LVArray<lUInt32> *, true> class_attribute_table;
+
+public:
+    explicit StyleCalculationCache(lxmlDocBase *doc):
+            doc(doc), class_attribute_table(0) {}
+    LVArray<lUInt32> *insertClass(lUInt32 index);
+    LVArray<lUInt32> *find(lUInt32 index) {
+        return class_attribute_table.get(index);
+    }
+    void clear();
+};
+
 class ldomDocument : public lxmlDocBase
 {
     friend class ldomDocumentWriter;
@@ -2540,6 +2556,7 @@ private:
     lString8Collection _fontFamilyFonts;
 
     StyleSheetCache _styleSheetCache;
+    StyleCalculationCache _styleCalculationCache;
 
 #if BUILD_LITE!=1
     /// load document cache file content
@@ -2700,6 +2717,8 @@ public:
     StyleSheetCache & getStyleSheetCache() {
         return _styleSheetCache;
     }
+    StyleCalculationCache & getStyleCalculationCache() { return _styleCalculationCache; }
+
 #endif
     /// destructor
     virtual ~ldomDocument();

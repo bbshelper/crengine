@@ -3914,6 +3914,7 @@ ldomDocument::ldomDocument()
 , _doc_pages(NULL)
 #endif
 , lists(100)
+, _styleCalculationCache(this)
 {
     _docIndex = ldomNode::registerDocument(this);
     ldomNode* node = allocTinyElement(NULL, 0, 0);
@@ -18045,31 +18046,32 @@ int ldomNode::getAttrCount() const
 #endif
 }
 
-/// returns attribute value by attribute name id and namespace id
-const lString32 & ldomNode::getAttributeValue( lUInt16 nsid, lUInt16 id ) const
-{
+lUInt32 ldomNode::getAttributeValueIndex(lUInt16 nsid, lUInt16 id) const {
     ASSERT_NODE_NOT_NULL;
     if ( !isElement() )
-        return lString32::empty_str;
+        return LXML_ATTR_VALUE_NONE;
 #if BUILD_LITE!=1
     if ( !isPersistent() ) {
 #endif
         // element
         tinyElement * me = NPELEM;
-        lUInt32 valueId = me->_attrs.get( nsid, id );
-        if ( valueId==LXML_ATTR_VALUE_NONE )
-            return lString32::empty_str;
-        return getDocument()->getAttrValue(valueId);
+        return me->_attrs.get( nsid, id );
 #if BUILD_LITE!=1
     } else {
         // persistent element
         ElementDataStorageItem * me = getDocument()->_elemStorage.getElem( _data._pelem_addr );
-        lUInt32 valueId = me->getAttrValueId( nsid, id );
-        if ( valueId==LXML_ATTR_VALUE_NONE )
-            return lString32::empty_str;
-        return getDocument()->getAttrValue(valueId);
+        return me->getAttrValueId( nsid, id );
     }
 #endif
+}
+
+/// returns attribute value by attribute name id and namespace id
+const lString32 & ldomNode::getAttributeValue( lUInt16 nsid, lUInt16 id ) const
+{
+    lUInt32 index = getAttributeValueIndex(nsid, id);
+    if (index == LXML_ATTR_VALUE_NONE)
+        return lString32::empty_str;
+    return getDocument()->getAttrValue(index);
 }
 
 /// returns attribute value by attribute name and namespace
@@ -20166,6 +20168,36 @@ LVImageSourceRef ldomNode::getObjectImageSource()
     if ( ((NodeImageProxy*)ref.get())->IsInvalid() )
         return LVImageSourceRef();
     return ref;
+}
+
+template<typename F>
+static void for_each_split(const lChar32 *begin, F functor) {
+    const lChar32 *end = begin;
+    while (*end) {
+        if (*end == ' ') {
+            if (end > begin)
+                functor(begin, end);
+            begin = end + 1;
+        }
+        ++end;
+    }
+    if (end > begin)
+        functor(begin, end);
+}
+
+LVArray<lUInt32> * StyleCalculationCache::insertClass(lUInt32 index) {
+    LVArray<lUInt32> * array = new LVArray<lUInt32>();
+    const lString32 & value = doc->getAttrValue(index);
+    for_each_split(value.c_str(), [&](const lChar32 *begin, const lChar32 *end) {
+        lString32 s(begin, end - begin);
+        array->add(doc->getAttrValueIndex(s.c_str()));
+    });
+    class_attribute_table.set(index, array);
+    return array;
+}
+
+void StyleCalculationCache::clear() {
+    class_attribute_table.clear();
 }
 
 /// register embedded document fonts in font manager, if any exist in document
